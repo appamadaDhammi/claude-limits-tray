@@ -1,4 +1,5 @@
 import AppKit
+import LimitsCore
 import SwiftUI
 
 @main
@@ -29,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = LimitsStore()
     private let statusStore = StatusStore()
     private var panel: WidgetWindow?
+    /// Ширина панели (210) плюс поля (12×2). Высота — стартовая,
+    /// дальше окно следует за содержимым.
+    private static let initialSize = NSSize(width: 234, height: 250)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let hosting = NSHostingView(rootView: WidgetView(store: store, statusStore: statusStore))
@@ -41,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // не показывает. Заголовок делаем прозрачным и пустым — визуально
         // окно остаётся безрамочным, но для системы это полноценное окно.
         let panel = WidgetWindow(
-            contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
+            contentRect: NSRect(origin: .zero, size: Self.initialSize),
             styleMask: [.titled, .fullSizeContentView, .closable],
             backing: .buffered,
             defer: false
@@ -67,10 +71,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // «перетаскивается между столами» — взаимоисключающие режимы.
         panel.collectionBehavior = [.managed, .participatesInCycle, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
-        panel.setContentSize(hosting.fittingSize)
         panel.setFrameOrigin(restoredOrigin(for: panel))
-        panel.orderFrontRegardless()
         self.panel = panel
+        // Показываем СРАЗУ на активном столе. macOS запоминает, какому столу
+        // принадлежали окна приложения, и без этого возвращает панель туда,
+        // где её оставили в прошлый раз — пользователь запускает программу,
+        // а система молча уводит его на другой рабочий стол.
+        summonPanel()
 
         NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: panel, queue: .main
@@ -86,6 +93,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         store.start()
         statusStore.start()
+
+        // Страховка от схлопывания окна в ноль: такое уже случалось, когда
+        // ручной размер конфликтовал с автоматическим. Окно нулевого размера
+        // неотличимо от «приложение не запустилось», поэтому проверяем и
+        // чиним, а не полагаемся на то, что этого больше не будет.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let panel = self?.panel else { return }
+                if panel.frame.width < 40 || panel.frame.height < 40 {
+                    Diagnostics.log("окно схлопнулось в \(panel.frame.size) — ставлю размер вручную")
+                    panel.setContentSize(AppDelegate.initialSize)
+                    panel.orderFrontRegardless()
+                }
+            }
+        }
     }
 
     /// Восстанавливает положение; если сохранённая точка вне текущих экранов
@@ -125,6 +147,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.setFrameOrigin(restoredOrigin(for: panel))
         }
 
+        // AppKit каскадирует окна с заголовком при показе — без явного
+        // возврата координат панель уползала бы по экрану на каждом призыве,
+        // и сдвинутое место ещё и сохранялось бы как «выбранное пользователем».
+        let keep = panel.frame.origin
+
         // .moveToActiveSpace на один такт: окно переезжает на текущий стол,
         // после чего снова становится обычным жильцом одного стола.
         let usual = panel.collectionBehavior
@@ -132,7 +159,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
-        DispatchQueue.main.async { panel.collectionBehavior = usual }
+        panel.setFrameOrigin(keep)
+        DispatchQueue.main.async {
+            panel.collectionBehavior = usual
+            panel.setFrameOrigin(keep)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { true }
