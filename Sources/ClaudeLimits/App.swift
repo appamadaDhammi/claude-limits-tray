@@ -107,5 +107,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    /// Повторный запуск уже работающего приложения. Без этого клик по иконке
+    /// не делает НИЧЕГО: иконки в доке нет, окна не всплывают, а панель может
+    /// стоять на другом рабочем столе — вернуть её было нечем.
+    func applicationShouldHandleReopen(_ app: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        summonPanel()
+        return true
+    }
+
+    /// Переносит панель на текущий рабочий стол и показывает её.
+    private func summonPanel() {
+        guard let panel else { return }
+
+        // Если сохранённое место оказалось вне видимых экранов — возвращаем
+        // панель в угол, иначе «призыв» покажет её там, где её не видно.
+        if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(panel.frame) }) {
+            panel.setFrameOrigin(restoredOrigin(for: panel))
+        }
+
+        // .moveToActiveSpace на один такт: окно переезжает на текущий стол,
+        // после чего снова становится обычным жильцом одного стола.
+        let usual = panel.collectionBehavior
+        panel.collectionBehavior = [.managed, .moveToActiveSpace, .fullScreenAuxiliary]
+        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.async { panel.collectionBehavior = usual }
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { true }
 }

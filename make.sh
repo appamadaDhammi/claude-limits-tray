@@ -27,10 +27,26 @@ rm -f "$BUILD_LOG"
 BINARY=$(swift build -c release --product ClaudeLimits --show-bin-path 2>/dev/null)/ClaudeLimits
 test -x "$BINARY" || { echo "бинарь не собрался: $BINARY"; exit 1; }
 
+echo "==> иконка"
+# Иконка рисуется кодом (Tools/GenerateIcon.swift) и кэшируется: пересобираем
+# только если генератор новее готового .icns.
+ICNS="build/AppIcon.icns"
+if [[ ! -f "$ICNS" || Tools/GenerateIcon.swift -nt "$ICNS" ]]; then
+    mkdir -p build
+    swiftc -O Tools/GenerateIcon.swift -o build/genicon 2>&1 | grep -v "warning:" || true
+    rm -rf build/AppIcon.iconset
+    ./build/genicon build/AppIcon.iconset
+    iconutil -c icns build/AppIcon.iconset -o "$ICNS"
+    echo "    иконка перерисована"
+else
+    echo "    иконка не изменилась"
+fi
+
 echo "==> сборка бандла"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BINARY" "$APP/Contents/MacOS/ClaudeLimits"
+cp "$ICNS" "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -45,7 +61,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>CFBundleVersion</key><string>$VERSION</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
-    <!-- Живёт только в строке меню: без иконки в доке и без переключения приложений -->
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <!-- Живёт панелью на рабочем столе: без иконки в доке -->
     <key>LSUIElement</key><true/>
     <key>NSHumanReadableCopyright</key><string>Личная утилита</string>
 </dict>
