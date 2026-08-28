@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Limits — панель лимитов для macOS</title>
+<style>
+:root{
+  --paper:#FFFFFF; --field:#E8E8E4; --ink:#0A0A0A; --ink-soft:#6B6B66;
+  --rule:#C9C9C3; --accent:#D97757; --ok:#1A7F37;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--field);color:var(--ink);font-family:var(--mono);
+     font-size:15px;line-height:1.55;min-height:100vh}
+.bar{padding:14px 20px;background:var(--ink);color:var(--paper);
+     border-bottom:3px solid var(--ink)}
+.brand{font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:13px}
+.brand em{font-style:normal;opacity:.55}
+.wrap{max-width:780px;margin:0 auto;padding:32px 20px 70px}
+h1{font-size:clamp(21px,3.4vw,28px);line-height:1.2;letter-spacing:-.01em;margin:0 0 6px}
+.lede{margin:0 0 22px;color:var(--ink-soft);max-width:62ch}
+.band{height:9px;margin:0 0 26px;
+      background-image:radial-gradient(var(--ink) .9px,transparent 1px);
+      background-size:4px 4px;opacity:.4}
+
+.cmd{background:var(--paper);border:1.5px solid var(--ink);padding:16px 18px;margin:0 0 12px}
+.cmd-label{font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+           color:var(--ink-soft);margin-bottom:9px}
+.cmd code{display:block;font-size:14px;word-break:break-all;line-height:1.5}
+button{
+  font:inherit;font-size:13px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+  padding:11px 22px;background:var(--ink);color:var(--paper);
+  border:1.5px solid var(--ink);cursor:pointer;
+}
+button:hover{background:var(--paper);color:var(--ink)}
+button[data-done="true"]{background:var(--ok);border-color:var(--ok);color:#fff}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);
+   margin:34px 0 10px}
+ol,ul{margin:0;padding-left:22px}
+li{margin-bottom:7px}
+.note{border-left:3px solid var(--accent);padding:10px 14px;margin:22px 0 0;
+      color:var(--ink-soft);font-size:14px}
+.note strong{color:var(--ink)}
+a{color:var(--ink);text-underline-offset:3px}
+a:hover{color:var(--accent)}
+
+.dl{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 8px}
+.dl a{display:inline-block;padding:11px 18px;background:var(--paper);
+      border:1.5px solid var(--ink);text-decoration:none;font-size:13px;
+      letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.dl a:hover{background:var(--ink);color:var(--paper)}
+.dl .size{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-soft);
+          margin-left:8px;font-size:12px}
+.dl a:hover .size{color:var(--paper);opacity:.7}
+
+.panel{background:#1F1D1B;color:#EDEAE5;border:1.5px solid var(--ink);
+       padding:16px 18px;margin:0 0 26px;font-size:13px;line-height:1.7;max-width:280px}
+.panel .row{display:flex;justify-content:space-between;gap:12px}
+.panel .pct{font-weight:700}
+.panel .sub{color:#8C857D;font-size:11px}
+.panel .accent{color:var(--accent)}
+.panel .head{display:flex;justify-content:space-between;margin-bottom:10px;
+             padding-bottom:8px;border-bottom:1px solid #35322E}
+</style>
+</head>
+<body>
+<header class="bar"><span class="brand">KADU <em>/ claude limits</em></span></header>
+
+<div class="wrap">
+  <h1>Claude Limits</h1>
+  <p class="lede">Плавающая панель для macOS: расход лимитов Claude и состояние сервисов —
+     на рабочем столе, не открывая Claude Code.</p>
+  <div class="band"></div>
+
+  <div class="panel">
+    <div class="head"><span>✳ Claude Limits</span><span class="sub">Max 20x</span></div>
+    <div class="row"><span>Сессия · 5ч</span><span class="pct">26%</span></div>
+    <div class="sub">до Сб 01:19</div>
+    <div class="row" style="margin-top:8px"><span>Неделя · всё</span><span class="pct">31%</span></div>
+    <div class="sub">до Чт 00:59</div>
+    <div class="row" style="margin-top:8px"><span>Неделя · Fable</span><span class="pct">40%</span></div>
+    <div class="sub">до Чт 00:59</div>
+    <div class="row" style="margin-top:12px;padding-top:8px;border-top:1px solid #35322E">
+      <span>● Claude Code</span><span class="accent">сбой</span></div>
+  </div>
+
+  <h2>Установка одной командой</h2>
+  <div class="cmd">
+    <div class="cmd-label">Команда для терминала — без предупреждений системы</div>
+    <code id="cmd">curl -fsSL https://kadu.su/claudelimits/install.sh | bash</code>
+  </div>
+  <button id="copy" type="button">Скопировать</button>
+
+  <h2>Или скачать файлом</h2>
+  <div class="dl">
+    <a href="ClaudeLimits-1.0.dmg">DMG<span class="size">493 КБ</span></a>
+    <a href="ClaudeLimits-1.0.pkg">PKG<span class="size">269 КБ</span></a>
+    <a href="ClaudeLimits-1.0.zip">ZIP<span class="size">268 КБ</span></a>
+  </div>
+  <p class="lede" style="font-size:14px;margin-top:10px">
+    <a href="SHA256SUMS">Контрольные суммы</a> ·
+    <a href="https://github.com/appamadaDhammi/claude-limits-tray">Исходный код на GitHub</a>
+  </p>
+
+  <div class="note">
+    <strong>При скачивании файлом macOS покажет предупреждение.</strong>
+    Приложение подписано, но не сертификатом Apple Developer — он платный, и для личной
+    утилиты его нет. Поэтому на всё скачанное браузером система ставит карантинную метку и
+    отказывается открывать. Обходится один раз: правый клик по программе → <em>Открыть</em> →
+    <em>Открыть</em> в диалоге. Команда выше снимает метку сама, поэтому предупреждения не будет.
+  </div>
+
+  <h2>Что нужно</h2>
+  <ul>
+    <li>macOS 13 или новее</li>
+    <li>Установленный и залогиненный <strong>Claude Code</strong> — панель читает его токен
+        из связки ключей, своего входа у неё нет</li>
+    <li>При первом запуске система спросит доступ к связке ключей: нажмите
+        <em>Всегда разрешать</em></li>
+  </ul>
+
+  <h2>Как пользоваться</h2>
+  <ul>
+    <li>Панель таскается за любое место, положение запоминается</li>
+    <li>Кнопок на ней нет — всё по правой кнопке: обновить, автозапуск, закрыть</li>
+    <li>Строка состояния сервисов раскрывается кликом: там инциденты Anthropic, если они есть</li>
+    <li>Уведомления приходят на 80% и 95% любого лимита</li>
+    <li>Панель живёт на одном рабочем столе и перетаскивается между ними в Mission Control;
+        если потерялась — откройте программу заново, она придёт к вам</li>
+  </ul>
+
+  <h2>Что она делает с данными</h2>
+  <ul>
+    <li>Читает токен Claude Code из связки ключей <strong>только на чтение</strong>, держит
+        в памяти и никуда не записывает</li>
+    <li>Ходит ровно по двум адресам: <code>api.anthropic.com</code> за лимитами и
+        <code>status.claude.com</code> за состоянием сервисов</li>
+    <li>Ни телеметрии, ни аналитики, ни сторонних библиотек</li>
+  </ul>
+</div>
+
+<script>
+document.getElementById('copy').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  try {
+    await navigator.clipboard.writeText(document.getElementById('cmd').textContent.trim());
+    button.textContent = 'Скопировано';
+    button.dataset.done = 'true';
+    setTimeout(() => { button.textContent = 'Скопировать'; delete button.dataset.done; }, 2000);
+  } catch {
+    button.textContent = 'Скопируйте вручную';
+  }
+});
+</script>
+</body>
+</html>
