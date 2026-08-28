@@ -5,9 +5,27 @@ public struct ServiceComponent: Equatable {
     public let name: String
     public let status: String   // operational, degraded_performance, partial_outage, ...
 
+    public init(name: String, status: String) {
+        self.name = name
+        self.status = status
+    }
+
     public var isOperational: Bool { status == "operational" }
 
-    /// Человеческое имя состояния.
+    /// Короткое имя для тесной строки заголовка: полное «частичный сбой»
+    /// переносится на две строки и ломает выравнивание.
+    public var shortLabel: String {
+        switch status {
+        case "operational": return "работает"
+        case "degraded_performance": return "замедлен"
+        case "partial_outage": return "сбой"
+        case "major_outage": return "недоступен"
+        case "under_maintenance": return "техработы"
+        default: return status
+        }
+    }
+
+    /// Полное имя состояния — для раскрытого списка.
     public var label: String {
         switch status {
         case "operational": return "работает"

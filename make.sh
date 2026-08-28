@@ -10,7 +10,17 @@ VERSION="1.0"
 APP="build/$NAME.app"
 
 echo "==> тесты"
-swift run LimitsTests 2>/dev/null
+# Вывод НЕ глушим: 2>/dev/null однажды скрыл провал компиляции тестов,
+# скрипт молча остановился, и проверка пошла на старом бинаре.
+TEST_LOG=$(mktemp)
+if ! swift run LimitsTests >"$TEST_LOG" 2>&1; then
+    grep -vE "XCTest paths|xcrun: error" "$TEST_LOG" || true
+    rm -f "$TEST_LOG"
+    echo "ТЕСТЫ ПРОВАЛЕНЫ"
+    exit 1
+fi
+grep -vE "XCTest paths|xcrun: error|^ *$" "$TEST_LOG" || true
+rm -f "$TEST_LOG"
 
 echo "==> сборка релиза"
 # Статус берём у самой сборки, а не у grep: иначе провал компиляции
@@ -75,9 +85,26 @@ codesign --force --deep --sign - "$APP"
 echo "==> готово: $APP"
 
 if [[ "${1:-}" == "--install" ]]; then
+    # Работающую версию обязательно останавливаем: open на уже запущенном
+    # приложении лишь активирует СТАРЫЙ процесс, и новая сборка молча не
+    # применяется — проверка тогда идёт на неизменившемся коде.
+    if pgrep -f "$NAME.app/Contents/MacOS" >/dev/null; then
+        echo "==> останавливаю запущенную версию"
+        pkill -f "$NAME.app/Contents/MacOS" || true
+        sleep 2
+    fi
+
     echo "==> установка в /Applications"
     rm -rf "/Applications/$NAME.app"
     cp -R "$APP" "/Applications/$NAME.app"
+
     echo "==> запуск"
     open "/Applications/$NAME.app"
+    sleep 3
+    if pgrep -f "$NAME.app/Contents/MacOS" >/dev/null; then
+        echo "    работает"
+    else
+        echo "    НЕ ПОДНЯЛОСЬ — смотри ~/Library/Logs/ClaudeLimits.log"
+        exit 1
+    fi
 fi

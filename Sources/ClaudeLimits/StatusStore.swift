@@ -44,7 +44,7 @@ final class StatusStore: ObservableObject {
     /// Строка для свёрнутого вида: интересует прежде всего Claude Code.
     var headline: String {
         guard let status else { return unreachable ? "статус недоступен" : "запрашиваю…" }
-        if let code = status.claudeCode { return code.label }
+        if let code = status.claudeCode { return code.shortLabel }
         return status.summary
     }
 

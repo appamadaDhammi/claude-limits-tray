@@ -268,6 +268,10 @@ do {
     let status = try StatusParser.parse(stormy)
     check("сбой распознан как тревога", status.hasTrouble)
     check("недоступность Claude Code названа", status.claudeCode?.label == "недоступен")
+    check("короткое имя состояния помещается в строку заголовка",
+          ServiceComponent(name: "x", status: "partial_outage").shortLabel == "сбой")
+    check("полное имя остаётся для раскрытого списка",
+          ServiceComponent(name: "x", status: "partial_outage").label == "частичный сбой")
     check("замедление API названо", status.api?.label == "замедлен")
     check("инцидент прочитан", status.incidents.first?.name == "Elevated error rates")
     check("стадия инцидента переведена", status.incidents.first?.statusLabel == "разбираются")

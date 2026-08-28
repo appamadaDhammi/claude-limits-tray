@@ -16,7 +16,10 @@ enum Main {
 
 /// Ключ хранения позиции. Вынесен из класса: к нему обращается
 /// обработчик перемещения окна, а тот не изолирован главным актором.
-private let panelOriginKey = "panelOrigin"
+/// Ключ хранит ВЕРХНИЙ левый угол. Имя отличается от прежнего
+/// (`panelOrigin`, нижний край) намеренно: сменив смысл значения,
+/// нельзя оставлять старое имя — прочитается как своё и уведёт окно.
+private let panelTopLeftKey = "panelTopLeft"
 
 /// Безрамочное окно должно уметь становиться ключевым, иначе галочка
 /// и кнопки внутри него не получат кликов.
@@ -30,16 +33,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = LimitsStore()
     private let statusStore = StatusStore()
     private var panel: WidgetWindow?
+    private var hosting: NSView?
     /// Ширина панели (210) плюс поля (12×2). Высота — стартовая,
     /// дальше окно следует за содержимым.
-    private static let initialSize = NSSize(width: 234, height: 250)
+    private static let initialSize = NSSize(width: 210, height: 250)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let hosting = NSHostingView(rootView: WidgetView(store: store, statusStore: statusStore))
+        let hosting = NSHostingView(rootView: WidgetView(
+            store: store,
+            statusStore: statusStore,
+            onResize: { [weak self] size in
+                MainActor.assumeIsolated { self?.resizePanel(to: size) }
+            }
+        ))
         hosting.layer?.backgroundColor = .clear
-        // Окно следует за содержимым: без этого раскрытие блока
-        // состояния просто обрежется прежним размером окна.
-        hosting.sizingOptions = [.preferredContentSize]
+        // Размером управляем сами, через PanelSizeKey (см. resizePanel):
+        // автоматический sizingOptions однажды уже схлопнул окно в ноль, а
+        // при раскрытии блока состояния вовсе не сработал.
 
         // Обычное окно, а не NSPanel: служебные панели Mission Control
         // не показывает. Заголовок делаем прозрачным и пустым — визуально
@@ -51,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         panel.contentView = hosting
+        self.hosting = hosting
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -69,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // .managed вместо .canJoinAllSpaces: окно принадлежит одному столу
         // и потому участвует в Mission Control. «Виден на всех столах» и
         // «перетаскивается между столами» — взаимоисключающие режимы.
-        panel.collectionBehavior = [.managed, .participatesInCycle, .fullScreenAuxiliary]
+        panel.collectionBehavior = [.managed, .moveToActiveSpace, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
         panel.setFrameOrigin(restoredOrigin(for: panel))
         self.panel = panel
@@ -86,8 +97,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // сообщаем об этом компилятору явно.
             MainActor.assumeIsolated {
                 guard let moved = note.object as? NSWindow else { return }
-                let origin = moved.frame.origin
-                UserDefaults.standard.set([origin.x, origin.y], forKey: panelOriginKey)
+                let frame = moved.frame
+                UserDefaults.standard.set([frame.minX, frame.maxY], forKey: panelTopLeftKey)
             }
         }
 
@@ -114,12 +125,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// (отключили монитор) — возвращает панель в правый верхний угол.
     private func restoredOrigin(for panel: NSWindow) -> NSPoint {
         let size = panel.frame.size
-        if let saved = UserDefaults.standard.array(forKey: panelOriginKey) as? [Double],
+        if let saved = UserDefaults.standard.array(forKey: panelTopLeftKey) as? [Double],
            saved.count == 2 {
-            let point = NSPoint(x: saved[0], y: saved[1])
+            // Хранится верхний левый угол — из него получаем начало координат
+            // окна (нижний левый), чтобы панель не прыгала при смене высоты.
+            let point = NSPoint(x: saved[0], y: saved[1] - size.height)
             let frame = NSRect(origin: point, size: size)
             if NSScreen.screens.contains(where: { $0.visibleFrame.intersects(frame) }) {
-                return point
+                return clamped(frame).origin
             }
         }
         guard let screen = NSScreen.main else { return .zero }
@@ -129,10 +142,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    /// Не даёт окну уехать за пределы экрана — при восстановлении позиции
+    /// и при росте вниз.
+    private func clamped(_ frame: NSRect) -> NSRect {
+        guard let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(frame) })
+                ?? NSScreen.main else { return frame }
+        let area = screen.visibleFrame
+        var result = frame
+        result.origin.x = min(max(area.minX, result.origin.x), area.maxX - result.width)
+        result.origin.y = min(max(area.minY, result.origin.y), area.maxY - result.height)
+        return result
+    }
+
+    /// Подгоняет окно под содержимое. Верхний край остаётся на месте:
+    /// окно растёт ВНИЗ. Иначе, из-за начала координат в левом нижнем углу,
+    /// раскрытие блока состояния выталкивало бы панель вверх.
+    private func resizePanel(to _: CGSize) {
+        guard let panel, let hosting else { return }
+        // Естественный размер спрашиваем у хостинга: содержимое, зажатое в
+        // окно, о своей настоящей высоте не сообщает.
+        hosting.layoutSubtreeIfNeeded()
+        let natural = hosting.fittingSize
+        guard natural.width > 1, natural.height > 1 else { return }
+        let target = panel.frameRect(forContentRect: NSRect(origin: .zero, size: natural)).size
+        let current = panel.frame
+        guard abs(target.height - current.height) > 0.5
+                || abs(target.width - current.width) > 0.5 else { return }
+        let top = current.maxY
+        panel.setFrame(
+            clamped(NSRect(x: current.minX, y: top - target.height,
+                           width: target.width, height: target.height)),
+            display: true
+        )
+    }
+
     /// Повторный запуск уже работающего приложения. Без этого клик по иконке
     /// не делает НИЧЕГО: иконки в доке нет, окна не всплывают, а панель может
     /// стоять на другом рабочем столе — вернуть её было нечем.
     func applicationShouldHandleReopen(_ app: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        Diagnostics.log("повторный запуск (окна видны: \(hasVisibleWindows))")
         summonPanel()
         return true
     }
@@ -152,18 +200,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // и сдвинутое место ещё и сохранялось бы как «выбранное пользователем».
         let keep = panel.frame.origin
 
-        // .moveToActiveSpace на один такт: окно переезжает на текущий стол,
-        // после чего снова становится обычным жильцом одного стола.
-        let usual = panel.collectionBehavior
-        panel.collectionBehavior = [.managed, .moveToActiveSpace, .fullScreenAuxiliary]
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         panel.setFrameOrigin(keep)
-        DispatchQueue.main.async {
-            panel.collectionBehavior = usual
-            panel.setFrameOrigin(keep)
-        }
+        DispatchQueue.main.async { panel.setFrameOrigin(keep) }
+        Diagnostics.log("призыв панели: \(Int(keep.x)),\(Int(keep.y))")
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { true }

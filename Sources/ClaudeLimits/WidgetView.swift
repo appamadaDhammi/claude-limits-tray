@@ -103,6 +103,7 @@ struct StatusSection: View {
                     Text(store.headline)
                         .font(.system(size: 10))
                         .foregroundStyle(store.hasTrouble ? Palette.accent : Palette.muted)
+                        .lineLimit(1)
                     Image(systemName: expanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(Palette.muted)
@@ -142,6 +143,7 @@ struct StatusSection: View {
                 }
                 .padding(.leading, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -184,10 +186,19 @@ struct IncidentRow: View {
     }
 }
 
+/// Канал, по которому вёрстка сообщает свой настоящий размер окну.
+/// Без него окно остаётся прежним, а содержимое обрезается сверху и снизу.
+struct PanelSizeKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+}
+
 /// Плавающая панель: таскается за любое место, положение запоминается.
 struct WidgetView: View {
     @ObservedObject var store: LimitsStore
     @ObservedObject var statusStore: StatusStore
+    /// Вызывается, когда содержимое меняет высоту (раскрыли блок состояния).
+    var onResize: (CGSize) -> Void = { _ in }
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("statusExpanded") private var statusExpanded = false
 
@@ -251,6 +262,16 @@ struct WidgetView: View {
         )
         // Всё управление — правой кнопкой. Ни одна опасная команда
         // не лежит на пути курсора при перетаскивании.
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            GeometryReader { geometry in
+                Color.clear.preference(key: PanelSizeKey.self, value: geometry.size)
+            }
+        )
+        // Значение служит лишь СИГНАЛОМ «содержимое поменялось»: измерять по
+        // нему нельзя — GeometryReader сообщает размер, выданный окном, а не
+        // нужный содержимому. Настоящий размер берётся у хостинга (resizePanel).
+        .onPreferenceChange(PanelSizeKey.self) { onResize($0) }
         .contextMenu {
             Button("Обновить сейчас") {
                 store.refresh()
