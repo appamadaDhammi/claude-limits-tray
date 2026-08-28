@@ -6,7 +6,35 @@ import Security
 public struct Credentials: Equatable {
     public let accessToken: String
     public let subscriptionType: String?
+    /// Точный тариф вида `default_claude_max_20x`. `subscriptionType` знает
+    /// только «max» и кратность не различает.
+    public let rateLimitTier: String?
     public let expiresAt: Date?
+
+    public init(accessToken: String, subscriptionType: String?,
+                rateLimitTier: String?, expiresAt: Date?) {
+        self.accessToken = accessToken
+        self.subscriptionType = subscriptionType
+        self.rateLimitTier = rateLimitTier
+        self.expiresAt = expiresAt
+    }
+
+    /// Подпись тарифа в шапке панели: «Max 20x», «Max 5x», «Pro».
+    public var planLabel: String? {
+        if let tier = rateLimitTier?.lowercased() {
+            if let range = tier.range(of: "max_[0-9]+x", options: .regularExpression) {
+                let multiplier = tier[range].dropFirst(4)   // "20x"
+                return "Max \(multiplier)"
+            }
+            for (needle, label) in [("pro", "Pro"), ("team", "Team"),
+                                    ("enterprise", "Enterprise"), ("free", "Free")]
+            where tier.contains(needle) {
+                return label
+            }
+        }
+        // Тариф неизвестной формы — показываем то, что есть, а не выдумываем.
+        return subscriptionType.map { $0.prefix(1).uppercased() + $0.dropFirst() }
+    }
 
     public var isExpired: Bool {
         guard let expiresAt else { return false }
@@ -60,6 +88,7 @@ public enum KeychainReader {
         return .success(Credentials(
             accessToken: token,
             subscriptionType: holder["subscriptionType"] as? String,
+            rateLimitTier: holder["rateLimitTier"] as? String,
             expiresAt: expiresAt
         ))
     }

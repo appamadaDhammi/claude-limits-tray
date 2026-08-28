@@ -115,7 +115,8 @@ group("Разбор записи Keychain")
 
 let ccShape = """
 {"claudeAiOauth": {"accessToken": "sk-ant-oat01-TESTTOKEN", "refreshToken": "sk-ant-ort01-X",
- "expiresAt": 1787718267178, "subscriptionType": "max", "scopes": ["user:profile"]}}
+ "expiresAt": 1787718267178, "subscriptionType": "max",
+ "rateLimitTier": "default_claude_max_20x", "scopes": ["user:profile"]}}
 """.data(using: .utf8)!
 
 let mcpOnlyShape = """
@@ -126,6 +127,8 @@ switch KeychainReader.parse(ccShape) {
 case .success(let creds):
     check("токен прочитан", creds.accessToken == "sk-ant-oat01-TESTTOKEN")
     check("тариф прочитан", creds.subscriptionType == "max")
+    check("кратность тарифа взята из rateLimitTier, а не из subscriptionType",
+          creds.planLabel == "Max 20x", "получено \(creds.planLabel ?? "nil")")
     check("срок жизни переведён из миллисекунд",
           creds.expiresAt.map { abs($0.timeIntervalSince1970 - 1787718267.178) < 1 } == true)
 case .failure(let error):
@@ -140,6 +143,16 @@ case .failure(let error):
     check("запись только с mcpOAuth опознаётся как «нет токена»", error == .noClaudeToken,
           "получено \(error)")
 }
+
+func plan(tier: String?, subscription: String?) -> String? {
+    Credentials(accessToken: "x", subscriptionType: subscription,
+                rateLimitTier: tier, expiresAt: nil).planLabel
+}
+check("Max 5x распознан", plan(tier: "default_claude_max_5x", subscription: "max") == "Max 5x")
+check("Pro распознан", plan(tier: "default_claude_pro", subscription: "pro") == "Pro")
+check("неизвестный тариф не выдумывается — берётся subscriptionType",
+      plan(tier: "something_new", subscription: "max") == "Max")
+check("без обоих полей подписи нет", plan(tier: nil, subscription: nil) == nil)
 
 switch KeychainReader.parse("{}".data(using: .utf8)!) {
 case .success: check("пустой объект — не токен", false)

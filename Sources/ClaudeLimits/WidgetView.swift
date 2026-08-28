@@ -212,7 +212,7 @@ struct WidgetView: View {
                     .font(.system(size: 11, weight: .semibold))
                 Spacer()
                 if let plan = store.plan {
-                    Text(plan.uppercased())
+                    Text(plan)
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundStyle(Palette.muted)
                 }

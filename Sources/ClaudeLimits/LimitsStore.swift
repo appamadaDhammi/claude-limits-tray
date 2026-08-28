@@ -72,14 +72,14 @@ final class LimitsStore: ObservableObject {
             scheduleTimer(after: backoffInterval)
 
         case .success(let credentials):
-            plan = credentials.subscriptionType
+            plan = credentials.planLabel
             var result = await client.fetch(token: credentials.accessToken)
             // Токен мог обновиться в Claude Code раньше, чем истёк наш кэш —
             // перечитываем связку один раз и пробуем снова.
             if case .failure(.unauthorized) = result,
                case .success(let fresh) = await self.credentials(reload: true),
                fresh.accessToken != credentials.accessToken {
-                plan = fresh.subscriptionType
+                plan = fresh.planLabel
                 result = await client.fetch(token: fresh.accessToken)
             }
             switch result {

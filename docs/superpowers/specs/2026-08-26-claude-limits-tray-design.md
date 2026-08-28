@@ -74,7 +74,13 @@
 
 Единственный доступный носитель — токен Claude Code в macOS Keychain: сервис
 `Claude Code-credentials`, значение — JSON с объектом `claudeAiOauth` (`accessToken`,
-`refreshToken`, `expiresAt` в миллисекундах, `subscriptionType`). Срок жизни access-токена
+`refreshToken`, `expiresAt` в миллисекундах, `subscriptionType`, `rateLimitTier`).
+
+**Точный тариф берётся из `rateLimitTier`** (`default_claude_max_20x`), а НЕ из
+`subscriptionType`: последний знает только «max» и кратность не различает, из-за чего владелец
+Max 20x видел в шапке просто «MAX». Кратность вынимается из строки, поэтому `max_5x` тоже
+распознаётся; Pro / Team / Enterprise / Free имеют свои подписи; тариф незнакомой формы
+показывается как есть, а не подменяется догадкой. Срок жизни access-токена
 около 8 часов; Claude Code обновляет его сам.
 
 Проверка: `security find-generic-password -s "Claude Code-credentials" -w`.
